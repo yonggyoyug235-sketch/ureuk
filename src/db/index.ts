@@ -1,5 +1,6 @@
 import { createClient, type Client } from "@libsql/client";
 import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
+import { resolveDbEnv } from "@/lib/db-env";
 import * as schema from "./schema";
 
 type Database = LibSQLDatabase<typeof schema>;
@@ -14,16 +15,15 @@ const globalForDb = globalThis as unknown as {
 function connect(): Database {
   if (globalForDb.__db) return globalForDb.__db;
 
-  const url = process.env.DATABASE_URL ?? "file:./data/app.db";
-  const authToken = process.env.DATABASE_AUTH_TOKEN || undefined;
+  const { url, authToken } = resolveDbEnv();
 
   // 서버리스(Vercel)의 파일시스템은 휘발성이라 file: SQLite는 배포마다 사라진다.
   // 조용히 빈 DB로 동작하다 엉뚱한 곳에서 터지는 대신 여기서 바로 알려준다.
   if (process.env.NODE_ENV === "production" && url.startsWith("file:") && process.env.VERCEL) {
     throw new Error(
-      "DATABASE_URL이 설정되지 않았거나 file: 경로입니다. Vercel에서는 파일 SQLite가 " +
-        "배포마다 사라지므로, Turso URL(libsql://...)과 토큰을 프로젝트 환경변수 " +
-        "DATABASE_URL / DATABASE_AUTH_TOKEN에 등록한 뒤 다시 배포하세요.",
+      "Turso 접속 정보가 없습니다. Vercel에서는 파일 SQLite가 배포마다 사라지므로 " +
+        "Marketplace의 Turso 연동을 붙이거나(TURSO_DATABASE_URL / TURSO_AUTH_TOKEN 자동 주입), " +
+        "DATABASE_URL / DATABASE_AUTH_TOKEN을 직접 등록한 뒤 다시 배포하세요.",
     );
   }
 

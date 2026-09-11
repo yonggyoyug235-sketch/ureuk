@@ -60,37 +60,52 @@ npm run dev                  # http://localhost:3000
 
 ## Vercel 배포
 
-1. **Turso DB 생성**
+환경변수를 등록하지 않으면 **빌드는 통과하지만 사이트를 열 때 500**이 납니다. 아래 둘 중 하나를 택하세요.
+
+### 방법 A — Vercel Marketplace (Windows 권장, CLI 불필요)
+
+1. Vercel 프로젝트 → **Storage** 탭 → **Create Database** → Marketplace에서 **Turso** 선택
+2. DB를 만들고 프로젝트에 연결하면 `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`이 자동 주입됩니다
+3. **Settings → Environment Variables**에서 `AUTH_SECRET`만 직접 추가 (32자 이상)
 
    ```bash
-   curl -sSfL https://get.tur.so/install.sh | bash
-   turso auth signup
-   turso db create ureuk-chat
-   turso db show ureuk-chat --url          # libsql://...
-   turso db tokens create ureuk-chat       # 토큰
+   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
    ```
 
-2. **스키마 반영** (로컬에서 원격 DB를 향해 한 번)
+4. 스키마를 원격 DB에 반영 — 주입된 값을 로컬로 내려받아 push 합니다
 
    ```bash
-   DATABASE_URL="libsql://..." DATABASE_AUTH_TOKEN="..." npx drizzle-kit push
+   npm i -g vercel
+   vercel link
+   vercel env pull .env.local
+   npx drizzle-kit push
    ```
 
-3. **Vercel 환경변수 등록** (Project Settings → Environment Variables)
+5. Deployments → 최신 배포 → **Redeploy**
 
-   | 키 | 값 |
-   | --- | --- |
-   | `DATABASE_URL` | `libsql://ureuk-chat-<org>.turso.io` |
-   | `DATABASE_AUTH_TOKEN` | 위에서 만든 토큰 |
-   | `AUTH_SECRET` | 32자 이상 임의 문자열 (`openssl rand -base64 32`) |
+### 방법 B — Turso 직접 생성
 
-4. **배포**
+Turso CLI는 Windows에서 WSL이 필요합니다. WSL이 없으면 [app.turso.tech](https://app.turso.tech) 웹 대시보드에서 DB와 토큰을 만드세요. CLI를 쓸 수 있다면:
 
-   ```bash
-   npx vercel --prod
-   ```
+```bash
+curl -sSfL https://get.tur.so/install.sh | bash
+turso auth signup
+turso db create ureuk-chat
+turso db show ureuk-chat --url      # libsql://...
+turso db tokens create ureuk-chat   # 토큰
+```
 
-`AUTH_SECRET`이 없거나 32자 미만이면 서버가 명시적으로 에러를 던집니다. 로컬 값을 그대로 프로덕션에 쓰지 마세요.
+받은 값을 `.env.local`에 넣고 `npx drizzle-kit push`로 스키마를 반영한 뒤, Vercel **Settings → Environment Variables**에 세 개를 등록하고 Redeploy 합니다.
+
+| 키 | 값 |
+| --- | --- |
+| `DATABASE_URL` | `libsql://ureuk-chat-<org>.turso.io` |
+| `DATABASE_AUTH_TOKEN` | 위에서 만든 토큰 |
+| `AUTH_SECRET` | 32자 이상 임의 문자열 |
+
+`TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN`과 `DATABASE_URL`/`DATABASE_AUTH_TOKEN` 둘 다 인식하며, 앞쪽이 우선합니다 (`src/lib/db-env.ts`).
+
+> 저장소가 public입니다. 토큰과 `AUTH_SECRET`은 절대 커밋하지 말고 Vercel 대시보드에만 넣으세요.
 
 ## 검증한 것
 
